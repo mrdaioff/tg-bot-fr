@@ -271,7 +271,7 @@ Pour toutes autres préoccupations vous pouvez contacter le support client en cl
             bot.send_message(user_id, f"Accédez au canal de retrait en suivant ce lien : {lien_canal}")
 
         elif message.text == '👤 Contacter le Support':
-            user_name_bot = "@LeBotDuSupportBOT"
+            user_name_bot = "@SupportPayflux"
             bot.send_message(user_id, f"Contactez le support via le chatbot ici : {user_name_bot}")
 
         elif message.text == '🏢 À propos de Payflux':
