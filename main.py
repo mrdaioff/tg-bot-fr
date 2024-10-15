@@ -44,6 +44,20 @@ def charger_données():
         enregistrer_données(données_initiales)
         return données_initiales
 
+def envoyer_statistiques():
+    data = charger_données()
+    total_users = data.get('total', 0)
+    total_withdrawals = sum(data['retrait'].values())
+    total_referrals = sum(data['référés'].values())
+    message_stats = f"""
+📊 *Statistiques du Jour* :
+
+👥 *Total d'utilisateurs* : {total_users}
+💸 *Total des retraits* : {total_withdrawals} FCFA
+👥 *Total des référencements* : {total_referrals}
+    """
+    bot.send_message(OWNER_ID, message_stats, parse_mode="Markdown")
+
 def mettre_à_jour_utilisateur(data, user, refid=None):
     data.setdefault('référés', {}).setdefault(user, 0)
     data['total'] += 1
@@ -358,8 +372,14 @@ def planifier_message_aleatoire():
     # Immediately call the function to send a message right after scheduling
     envoyer_message_paiement()
 
+# Planification de l'envoi des statistiques quotidiennes
+def planifier_statistiques_quotidiennes():
+    schedule.every().day.at("12:00").do(envoyer_statistiques)
+
 if __name__ == "__main__":
     planifier_message_aleatoire()
+    planifier_statistiques_quotidiennes()
+
     bot_thread = threading.Thread(target=lambda: bot.polling(none_stop=True))
     bot_thread.start()
 
