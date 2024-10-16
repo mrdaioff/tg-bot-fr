@@ -367,7 +367,7 @@ Payflux : Monétisez votre répertoire. 💰
     bot.send_photo('@PayfluxRetraits', photo=url_image, caption=message, parse_mode='Markdown')
 
 def planifier_message_aleatoire():
-    schedule.every(random.randint(3, 35)).minutes.do(envoyer_message_paiement)
+    schedule.every(random.randint(7, 53)).minutes.do(envoyer_message_paiement)
     
     # Immediately call the function to send a message right after scheduling
     envoyer_message_paiement()
