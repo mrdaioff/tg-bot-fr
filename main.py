@@ -285,7 +285,7 @@ Pour toutes autres préoccupations vous pouvez contacter le support client en cl
             bot.send_message(user_id, f"Accédez au canal de retrait en suivant ce lien : {lien_canal}")
 
         elif message.text == '👤 Contacter le Support':
-            user_name_bot = "@SupportPayflux"
+            user_name_bot = "@PayfluxSup_BOT"
             bot.send_message(user_id, f"Contactez le support via le chatbot ici : {user_name_bot}")
 
         elif message.text == '🏢 À propos de Payflux':
@@ -383,6 +383,21 @@ if __name__ == "__main__":
     bot_thread = threading.Thread(target=lambda: bot.polling(none_stop=True))
     bot_thread.start()
 
+# Thread pour exécuter le schedule en arrière-plan
+def run_schedule():
     while True:
         schedule.run_pending()
-        time.sleep(1)
+        time.sleep(60)
+
+threading.Thread(target=run_schedule, daemon=True).start()
+
+# Fonction principale pour lancer le bot
+def lancer_bot():
+    try:
+        bot.polling(non_stop=True)
+    except Exception as e:
+        bot.send_message(OWNER_ID, f"Erreur inattendue : {str(e)}")
+        time.sleep(10)
+        lancer_bot()
+
+lancer_bot()
