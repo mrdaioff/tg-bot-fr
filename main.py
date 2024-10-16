@@ -160,20 +160,29 @@ def gestionnaire_query(call):
     try:
         user_id = call.message.chat.id
         data = charger_données()
+        
         if call.data == 'vérifier':
             if vérifier_abonnement(user_id):
                 bot.answer_callback_query(call.id, text='✅ Vous avez rejoint avec succès ! Vous pouvez maintenant gagner de l\'argent.')
                 bot.delete_message(user_id, call.message.message_id)
-                ref_par = data['référé_par'].get(user_id, user_id)
-                if ref_par != user_id:
+                
+                # Récupérer l'utilisateur qui a parrainé (si applicable)
+                ref_par = data['référé_par'].get(user_id)
+                
+                if ref_par and ref_par != user_id:
                     ref_id = str(ref_par)
+                    # Mise à jour du solde du parrain
                     data['solde'][ref_id] = data['solde'].get(ref_id, 0) + Par_référencement
-                    data['référés'][ref_id] += 1
-                    bot.send_message(ref_id, f"*🏧 Nouveau Référencement Niveau 1, Vous avez reçu : +{Par_référencement} FCFA*", parse_mode="Markdown")
+                    # Incrémentation du nombre de référencés
+                    data['référés'][ref_id] = data['référés'].get(ref_id, 0) + 1
+                    bot.send_message(ref_id, f"*🏧 Félicitations pour votre nouvel invité, Vous avez reçu : +{Par_référencement} FCFA*", parse_mode="Markdown")
+                
+                # Sauvegarder les changements
                 enregistrer_données(data)
                 menu(user_id)
             else:
                 bot.answer_callback_query(call.id, text='❌ Vous n\'avez pas vérifié.')
+                # Renvoi du message pour vérifier l'abonnement
                 markup = telebot.types.InlineKeyboardMarkup()
                 for canal in CHANNELS:
                     markup.add(telebot.types.InlineKeyboardButton(text=f'Rejoindre {canal}', url=f'https://t.me/{canal.strip("@")}'))
@@ -182,9 +191,11 @@ def gestionnaire_query(call):
                 for canal in CHANNELS:
                     msg_start += f"➡️ {canal}\n"
                 bot.send_message(user_id, msg_start, parse_mode="Markdown", reply_markup=markup)
+
     except Exception as e:
         bot.send_message(call.message.chat.id, "Il y a eu une erreur lors du traitement de cette commande. Veuillez attendre que l'administrateur résolve le problème.")
         bot.send_message(OWNER_ID, f"Le bot a rencontré une erreur : {str(e)}\nDonnées de rappel : {call.data}")
+
 
 @bot.message_handler(content_types=['text'])
 def envoyer_texte(message):
