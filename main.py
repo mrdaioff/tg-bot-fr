@@ -391,8 +391,14 @@ if __name__ == "__main__":
     planifier_message_aleatoire()
     planifier_statistiques_quotidiennes()
 
-    bot_thread = threading.Thread(target=lambda: bot.polling(none_stop=True))
-    bot_thread.start()
+    # Start the schedule in a separate thread
+    threading.Thread(target=run_schedule, daemon=True).start()
+
+    try:
+        bot.polling(non_stop=True)
+    except Exception as e:
+        bot.send_message(OWNER_ID, f"Erreur inattendue : {str(e)}")
+        time.sleep(10)
 
 # Thread pour exécuter le schedule en arrière-plan
 def run_schedule():
