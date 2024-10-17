@@ -383,22 +383,65 @@ def planifier_message_aleatoire():
     # Immediately call the function to send a message right after scheduling
     envoyer_message_paiement()
 
+# Planification de l'envoi de messages de paiement aléatoires
+def envoyer_message_paiement():
+    identifiant_compte = ''.join([str(random.randint(0, 9)) for _ in range(10)])
+    nom_utilisateur = names.get_first_name('fr')
+    montant_reçu = random.randint(60, 107) * 500
+    méthode_paiement = random.choice(méthodes_de_paiement)
+    pays = random.choice(liste_pays)
+    url_image = random.choice(urls_images)
+
+    message = f"""💰 *Nouveau Paiement PAYFLUX*
+
+🌐 *Statut* : Payé ✅
+🌐 *ID Compte* : `{identifiant_compte}`
+🌐 *Nom d'utilisateur* : {nom_utilisateur}
+🌐 *Montant Reçu* : {montant_reçu:,} FCFA
+🌐 *Adresse de Retrait* : Confidentiel 🔐
+🌐 *Pays* : {pays}
+
+Bot : [@PayfluxBOT](t.me/PayfluxBOT)
+
+Gagnez en toute confiance et sécurité avec Payflux. 🛡️
+Payflux : Monétisez votre répertoire. 💰
+    """
+    
+    bot.send_photo('@PayfluxRetraits', photo=url_image, caption=message, parse_mode='Markdown')
+
+def planifier_message_aleatoire():
+    schedule.every(random.randint(7, 53)).minutes.do(envoyer_message_paiement)
+    
+    # Immediately call the function to send a message right after scheduling
+    envoyer_message_paiement()
+
 # Planification de l'envoi des statistiques quotidiennes
 def planifier_statistiques_quotidiennes():
     schedule.every().day.at("12:00").do(envoyer_statistiques)
 
-if __name__ == "__main__":
+# The new polling function
+def start_polling():
+    try:
+        bot.polling(non_stop=True)
+    except Exception as e:
+        print(f"Polling error: {e}")
+        time.sleep(10)
+        start_polling()  # Optionally restart polling
+
+# The new main function
+def main():
     planifier_message_aleatoire()
     planifier_statistiques_quotidiennes()
 
     # Start the schedule in a separate thread
     threading.Thread(target=run_schedule, daemon=True).start()
 
-    try:
-        bot.polling(non_stop=True)
-    except Exception as e:
-        bot.send_message(OWNER_ID, f"Erreur inattendue : {str(e)}")
-        time.sleep(10)
+    # Start the polling in a separate thread
+    polling_thread = threading.Thread(target=start_polling)
+    polling_thread.daemon = True  # Ensure the thread will close on exit
+    polling_thread.start()
+
+    polling_thread.join()
 
 # Thread pour exécuter le schedule en arrière-plan
 def run_schedule():
@@ -406,15 +449,5 @@ def run_schedule():
         schedule.run_pending()
         time.sleep(60)
 
-threading.Thread(target=run_schedule, daemon=True).start()
-
-# Fonction principale pour lancer le bot
-def lancer_bot():
-    try:
-        bot.polling(non_stop=True)
-    except Exception as e:
-        bot.send_message(OWNER_ID, f"Erreur inattendue : {str(e)}")
-        time.sleep(10)
-        lancer_bot()
-
-lancer_bot()
+if __name__ == '__main__':
+    main()
