@@ -121,6 +121,7 @@ def start(message):
         user = str(message.chat.id)
         data = charger_données()
 
+        # Extract referrer ID if provided
         refid = message.text.split()[1] if len(message.text.split()) > 1 else None
         mettre_à_jour_utilisateur(data, user, refid)
 
@@ -135,7 +136,14 @@ def start(message):
             bot.send_message(user, msg_start, parse_mode="Markdown", reply_markup=markup)
         else:
             menu(user)
-        
+
+            # Update the referrer if applicable
+            if refid and refid != user:
+                ref_id = str(refid)
+                data['solde'][ref_id] = data['solde'].get(ref_id, 0) + Par_référencement
+                data['référés'][ref_id] = data['référés'].get(ref_id, 0) + 1
+                bot.send_message(ref_id, f"*🏧 Félicitations pour votre nouvel invité, Vous avez reçu : +{Par_référencement} FCFA*", parse_mode="Markdown")
+
         enregistrer_données(data)
     except Exception as e:
         bot.send_message(message.chat.id, "Il y a eu une erreur lors du traitement de cette commande. Veuillez attendre que l'administrateur résolve le problème.")
