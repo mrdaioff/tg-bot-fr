@@ -425,7 +425,7 @@ def planifier_message_aleatoire():
 
 # Planification de l'envoi des statistiques quotidiennes
 def planifier_statistiques_quotidiennes():
-    schedule.every().day.at("12:00").do(envoyer_statistiques)
+    schedule.every().day.at("16:07").do(envoyer_statistiques)
 
 # The new polling function
 def start_polling():
