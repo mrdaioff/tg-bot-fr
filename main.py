@@ -458,4 +458,8 @@ def run_schedule():
         time.sleep(60)
 
 if __name__ == '__main__':
+<<<<<<< HEAD
     main()
+=======
+    main()
+>>>>>>> ae4992c7ad1d2b4d98162deed5457c50b8000e0c
