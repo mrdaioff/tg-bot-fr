@@ -6,7 +6,7 @@ import schedule
 import names
 import threading
 
-BOT_TOKEN = '7840046869:AAEWqV_8grKJrpN1nxsTNRSItNF7tpUTX0c'
+BOT_TOKEN = '7840046869:AAGjzXrt_KTYOsBcUvSw4_6gPQ4ojiJ0QFY'
 CHANNELS = ["@PayfluxRetraits", "@payflux2024"]
 OWNER_ID = 411645290
 
