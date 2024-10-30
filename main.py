@@ -459,9 +459,3 @@ def run_schedule():
 
 if __name__ == '__main__':
     main()
-    
-# Dummy port binding to keep Render's web service alive
-    port = int(os.environ.get("PORT", 5000))  # Default to port 5000 if not set
-    print(f"Listening on dummy port {port} for Render's requirement.")
-    while True:
-        time.sleep(100)  # Keeps the process alive without actual server
