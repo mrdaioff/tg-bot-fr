@@ -5,6 +5,7 @@ import random
 import schedule
 import names
 import threading
+from datetime import datetime
 
 BOT_TOKEN = '7840046869:AAGjzXrt_KTYOsBcUvSw4_6gPQ4ojiJ0QFY'
 CHANNELS = ["@PayfluxRetraits", "@payflux2024"]
@@ -25,54 +26,89 @@ urls_images = [
     'https://ibb.co/p0SpmV3',  # URL fictif : remplacez par une URL d'image valide
 ]
 
-# ---------- Fonctions d'assistance ------------
+class DatabaseManager:
+    def __init__(self, filename='utilisateurs.json'):
+        self.filename = filename
+        self.lock = threading.Lock()
+        
+    def save_data(self, data):
+        with self.lock:
+            try:
+                with open(self.filename, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                return True
+            except Exception as e:
+                print(f"Erreur lors de l'enregistrement: {str(e)}")
+                return False
 
-def enregistrer_données(data):
-    try:
-        with open('utilisateurs.json', 'w') as f:
-            json.dump(data, f)
-    except Exception as e:
-        bot.send_message(OWNER_ID, f"Erreur lors de l'enregistrement des données : {str(e)}")
+    def load_data(self):
+        with self.lock:
+            try:
+                with open(self.filename, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                data = self.get_initial_data()
+                self.save_data(data)
+            return data
 
-def charger_données():
-    try:
-        with open('utilisateurs.json', 'r') as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        données_initiales = {'solde': {}, 'portefeuille': {}, 'vérification': {}, 'référés': {},
-                             'référé_par': {}, 'retrait': {}, 'id': {}, 'total': 0}
-        enregistrer_données(données_initiales)
-        return données_initiales
+    def get_initial_data(self):
+        return {
+            'solde': {},
+            'portefeuille': {},
+            'vérification': {},
+            'référés': {},
+            'référé_par': {},
+            'retrait': {},
+            'utilisateurs': {},  # New structure for user tracking
+            'total_historique': 0,  # Total historical unique users
+            'dernière_mise_à_jour': datetime.now().isoformat()
+        }
+
+    def update_user(self, user_id, username, first_name):
+        data = self.load_data()
+        user_str = str(user_id)
+        
+        # Initialize user data if not exists
+        if user_str not in data['utilisateurs']:
+            data['utilisateurs'][user_str] = {
+                'id': user_id,
+                'username': username,
+                'first_name': first_name,
+                'date_première_visite': datetime.now().isoformat(),
+                'dernière_activité': datetime.now().isoformat()
+            }
+            data['total_historique'] += 1
+            
+            # Initialize other necessary fields
+            data['solde'][user_str] = data['solde'].get(user_str, 0)
+            data['portefeuille'][user_str] = data['portefeuille'].get(user_str, "none")
+            data['vérification'][user_str] = data['vérification'].get(user_str, 0)
+            data['référés'][user_str] = data['référés'].get(user_str, 0)
+            data['retrait'][user_str] = data['retrait'].get(user_str, 0)
+        else:
+            # Update last activity
+            data['utilisateurs'][user_str]['dernière_activité'] = datetime.now().isoformat()
+            
+        self.save_data(data)
+        return data
+
+# Initialize database manager
+db = DatabaseManager()
 
 def envoyer_statistiques():
-    data = charger_données()
-    total_users = data.get('total', 0)
+    data = db.load_data()
+    total_users = data['total_historique']
     total_withdrawals = sum(data['retrait'].values())
     total_referrals = sum(data['référés'].values())
+    
     message_stats = f"""
 📊 *Statistiques du Jour* :
 
-👥 *Total d'utilisateurs* : {total_users}
-💸 *Total des retraits* : {total_withdrawals} FCFA
+👥 *Total d'utilisateurs uniques* : {total_users}
+💸 *Total des retraits* : {total_withdrawals:,} FCFA
 👥 *Total des référencements* : {total_referrals}
     """
     bot.send_message(OWNER_ID, message_stats, parse_mode="Markdown")
-
-def mettre_à_jour_utilisateur(data, user, refid=None):
-    data.setdefault('référés', {}).setdefault(user, 0)
-    data['total'] += 1
-    data.setdefault('référé_par', {})[user] = refid if refid else user
-    data.setdefault('vérification', {})[user] = 0
-    data.setdefault('solde', {})[user] = 0
-    data.setdefault('portefeuille', {})[user] = "none"
-    data.setdefault('retrait', {})[user] = 0
-    data.setdefault('id', {})[user] = data['total']
-
-def afficher_méthodes_de_paiement(user_id):
-    markup = telebot.types.InlineKeyboardMarkup()
-    for methode in méthodes_de_paiement:
-        markup.add(telebot.types.InlineKeyboardButton(text=methode, callback_data=f"méthode_paiement:{methode}"))
-    bot.send_message(user_id, "Sélectionnez votre méthode de paiement :", reply_markup=markup)
 
 def vérifier_abonnement(user_id):
     for canal in CHANNELS:
@@ -91,6 +127,7 @@ def menu(user_id):
     clavier.row('⚙️ Configurer le Compte de Retrait', '💸 Retrait')
     clavier.row('📑 Canal de Retrait', '🎁 Bonus Quotidien')
     clavier.row('🏢 À propos de Payflux', '👤 Contacter le Support')
+    
     message_bienvenue = """
 👋 *Bienvenue sur PAYFLUX* ! 📢
 
@@ -118,36 +155,44 @@ Cliquez sur "🙌🏻 Invitations" pour récupérer votre lien et commencez à g
 @bot.message_handler(commands=['start'])
 def start(message):
     try:
-        user = str(message.chat.id)
-        data = charger_données()
+        user_id = message.chat.id
+        user = str(user_id)
+        
+        # Update user data
+        data = db.update_user(
+            user_id,
+            message.from_user.username,
+            message.from_user.first_name
+        )
 
         # Extract referrer ID if provided
         refid = message.text.split()[1] if len(message.text.split()) > 1 else None
-        mettre_à_jour_utilisateur(data, user, refid)
-
-        if not vérifier_abonnement(user):
+        
+        if not vérifier_abonnement(user_id):
             markup = telebot.types.InlineKeyboardMarkup()
             for canal in CHANNELS:
                 markup.add(telebot.types.InlineKeyboardButton(text=f'Rejoindre {canal}', url=f'https://t.me/{canal.strip("@")}'))
             markup.add(telebot.types.InlineKeyboardButton(text='🤼‍♂️ Vérifier', callback_data='vérifier'))
+            
             msg_start = "*🍔 Pour utiliser ce bot, rejoignez ces chaînes :*\n\n"
             for canal in CHANNELS:
                 msg_start += f"➡️ {canal}\n"
-            bot.send_message(user, msg_start, parse_mode="Markdown", reply_markup=markup)
+            bot.send_message(user_id, msg_start, parse_mode="Markdown", reply_markup=markup)
         else:
-            menu(user)
+            menu(user_id)
 
-            # Update the referrer if applicable
-            if refid and refid != user:
+            # Update referrer data if applicable and not already processed
+            if refid and refid != user and data['référé_par'].get(user, None) != refid:
                 ref_id = str(refid)
                 data['solde'][ref_id] = data['solde'].get(ref_id, 0) + Par_référencement
                 data['référés'][ref_id] = data['référés'].get(ref_id, 0) + 1
+                data['référé_par'][user] = refid
+                db.save_data(data)
                 bot.send_message(ref_id, f"*🏧 Félicitations pour votre nouvel invité, Vous avez reçu : +{Par_référencement} FCFA*", parse_mode="Markdown")
 
-        enregistrer_données(data)
     except Exception as e:
-        bot.send_message(message.chat.id, "Il y a eu une erreur lors du traitement de cette commande. Veuillez attendre que l'administrateur résolve le problème.")
-        bot.send_message(OWNER_ID, f"Le bot a rencontré une erreur : {str(e)}\nCommande : {message.text}")
+        bot.send_message(message.chat.id, "Une erreur est survenue. Veuillez réessayer plus tard.")
+        bot.send_message(OWNER_ID, f"Erreur dans /start: {str(e)}")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('méthode_paiement:'))
 def gérer_selection_méthode_paiement(call):
@@ -167,7 +212,7 @@ def gérer_selection_méthode_paiement(call):
 def gestionnaire_query(call):
     try:
         user_id = call.message.chat.id
-        data = charger_données()
+        data = db.load_data()
         
         if call.data == 'vérifier':
             if vérifier_abonnement(user_id):
@@ -186,7 +231,7 @@ def gestionnaire_query(call):
                     bot.send_message(ref_id, f"*🏧 Félicitations pour votre nouvel invité, Vous avez reçu : +{Par_référencement} FCFA*", parse_mode="Markdown")
                 
                 # Sauvegarder les changements
-                enregistrer_données(data)
+                db.save_data(data)
                 menu(user_id)
             else:
                 bot.answer_callback_query(call.id, text='❌ Vous n\'avez pas vérifié.')
@@ -210,7 +255,7 @@ def envoyer_texte(message):
     try:
         user_id = message.chat.id
         user = str(user_id)
-        data = charger_données()
+        data = db.load_data()
 
         if message.text == '🆔 Mon Compte':
             solde = data['solde'].get(user, 0)
@@ -243,7 +288,7 @@ def envoyer_texte(message):
                 minutes = int((temps_restant % 3600) // 60)
                 bot.send_message(user_id, f"Vous avez déjà réclamé votre bonus aujourd'hui. Revenez dans {heures} heure(s) et {minutes} minute(s).")
 
-            enregistrer_données(data)
+            db.save_data(data)
 
         elif message.text == '💸 Retrait':
             solde = data['solde'].get(user, 0)
@@ -328,7 +373,7 @@ Pour toutes autres préoccupations vous pouvez contacter le support client en cl
             if state['état'] == 'saisie_compte':
                 infos_compte = message.text.strip()
                 data['portefeuille'][user] = f"{state['méthode_paiement']}: {infos_compte}"
-                enregistrer_données(data)
+                db.save_data(data)
                 bot.send_message(user_id, f"*Votre compte de retrait a été configuré avec succès sur {data['portefeuille'][user]}*", parse_mode="Markdown")
                 user_state.pop(user_id)
 
@@ -339,7 +384,7 @@ Pour toutes autres préoccupations vous pouvez contacter le support client en cl
                     
                     if montant_à_retirer <= solde:
                         data['solde'][user] -= montant_à_retirer
-                        enregistrer_données(data)
+                        db.save_data(data)
                         envoyer_message_retrait(user_id, montant_à_retirer)
                         bot.send_message(user_id, "🎉 Votre retrait a été traité avec succès !")
                     else:
@@ -353,7 +398,7 @@ Pour toutes autres préoccupations vous pouvez contacter le support client en cl
         bot.send_message(OWNER_ID, f"Le bot a rencontré une erreur : {str(e)}\nDonnées du message : {message.text}")
 
 def envoyer_message_retrait(user_id, montant):
-    données_utilisateur = charger_données()
+    données_utilisateur = db.load_data()
     portefeuille_utilisateur = données_utilisateur['portefeuille'].get(str(user_id), "Compte inconnu")
     message = f"🔔 *Demande de Retrait Réussie*\n\n👤 *Utilisateur* : {user_id}\n💰 *Montant* : {montant} FCFA\n🏦 *Compte* : {portefeuille_utilisateur}"
     for canal in CHANNELS:
@@ -396,7 +441,6 @@ def envoyer_message_paiement():
     identifiant_compte = ''.join([str(random.randint(0, 9)) for _ in range(10)])
     nom_utilisateur = names.get_first_name('fr')
     montant_reçu = random.randint(60, 107) * 500
-    méthode_paiement = random.choice(méthodes_de_paiement)
     pays = random.choice(liste_pays)
     url_image = random.choice(urls_images)
 
@@ -415,7 +459,10 @@ Gagnez en toute confiance et sécurité avec Payflux. 🛡️
 Payflux : Monétisez votre répertoire. 💰
     """
     
-    bot.send_photo('@PayfluxRetraits', photo=url_image, caption=message, parse_mode='Markdown')
+    try:
+        bot.send_photo('@PayfluxRetraits', photo=url_image, caption=message, parse_mode='Markdown')
+    except Exception as e:
+        print(f"Erreur lors de l'envoi du message de paiement: {str(e)}")
 
 def planifier_message_aleatoire():
     schedule.every(random.randint(7, 53)).minutes.do(envoyer_message_paiement)
@@ -423,39 +470,29 @@ def planifier_message_aleatoire():
     # Immediately call the function to send a message right after scheduling
     envoyer_message_paiement()
 
-# Planification de l'envoi des statistiques quotidiennes
-def planifier_statistiques_quotidiennes():
-    schedule.every().day.at("11:20").do(envoyer_statistiques)
-
-# The new polling function
-def start_polling():
-    try:
-        bot.polling(non_stop=True)
-    except Exception as e:
-        print(f"Polling error: {e}")
-        time.sleep(10)
-        start_polling()  # Optionally restart polling
-
-# The new main function
-def main():
-    planifier_message_aleatoire()
-    planifier_statistiques_quotidiennes()
-
-    # Start the schedule in a separate thread
-    threading.Thread(target=run_schedule, daemon=True).start()
-
-    # Start the polling in a separate thread
-    polling_thread = threading.Thread(target=start_polling)
-    polling_thread.daemon = True  # Ensure the thread will close on exit
-    polling_thread.start()
-
-    polling_thread.join()
-
-# Thread pour exécuter le schedule en arrière-plan
 def run_schedule():
     while True:
         schedule.run_pending()
-        time.sleep(60)
+        time.sleep(1)
+
+def main():
+    # Initialize scheduler
+    planifier_message_aleatoire()
+    schedule.every().day.at("11:20").do(envoyer_statistiques)
+
+    # Start scheduler thread
+    schedule_thread = threading.Thread(target=run_schedule)
+    schedule_thread.daemon = True
+    schedule_thread.start()
+
+    # Start bot polling with error handling
+    while True:
+        try:
+            print("Bot démarré...")
+            bot.polling(none_stop=True, timeout=60)
+        except Exception as e:
+            print(f"Erreur de polling: {str(e)}")
+            time.sleep(10)
 
 if __name__ == '__main__':
     main()
